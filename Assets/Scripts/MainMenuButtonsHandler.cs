@@ -2,6 +2,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Unity.Netcode; 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -14,27 +15,12 @@ public class MainMenuButtonsHandler : MonoBehaviour
     [Header("UI")]
     [SerializeField] private TMP_Dropdown mapsDropdown;
 
-    /// <summary>
-    /// Inicializa el dropdown de mapas al cargar el menú principal.
-    /// </summary>
-    private void Start()
-    {
-        initializeMapDropdown();
-    }
+    private void Start() { initializeMapDropdown(); }
+    private void OnDestroy() { if (mapsDropdown != null) mapsDropdown.onValueChanged.RemoveListener(onMapDropdownChanged); }
 
-    /// <summary>
-    /// Libera la suscripción del dropdown al destruir el objeto.
-    /// </summary>
-    private void OnDestroy()
-    {
-        if (mapsDropdown != null)
-            mapsDropdown.onValueChanged.RemoveListener(onMapDropdownChanged);
-    }
+    //BOTONES MULTIJUGADOR
 
-    /// <summary>
-    /// Navega a la escena de selección de personaje si hay mapa seleccionado.
-    /// </summary>
-    public void OnButtonPlayClicked()
+    public void OnHostButtonClicked()
     {
         if (GameManager.Instance?.SelectedMapConfig == null)
         {
@@ -42,23 +28,24 @@ public class MainMenuButtonsHandler : MonoBehaviour
             return;
         }
 
-        SceneManager.LoadScene(SceneNames.CharSelection);
+        // 1. SE ENCIENDE LA RED COMO HOST
+        NetworkManager.Singleton.StartHost();
+
+        // 2.EL HOST MANDA Y MANDA CARGAR LA ESCENA PARA TODOS
+        NetworkManager.Singleton.SceneManager.LoadScene(SceneNames.CharSelection, LoadSceneMode.Single);
     }
 
-    /// <summary>
-    /// Registra la acción del botón de opciones del menú principal.
-    /// </summary>
-    public void OnOptionsButtonClicked()
+    public void OnClientButtonClicked()
     {
-        Debug.Log("Options button pressed");
+        // 1. ENCIENCE LA RED COMO CLIENTE
+        NetworkManager.Singleton.StartClient();
+
     }
 
-    /// <summary>
-    /// Cierra la aplicación o detiene la ejecución en el editor.
-    /// </summary>
+
+    public void OnOptionsButtonClicked() { Debug.Log("Options button pressed"); }
     public void OnExitButtonClicked()
     {
-        Debug.Log("Exit button pressed");
 #if UNITY_EDITOR
         EditorApplication.isPlaying = false;
 #else
@@ -66,50 +53,23 @@ public class MainMenuButtonsHandler : MonoBehaviour
 #endif
     }
 
-    /// <summary>
-    /// Configura las opciones del dropdown y establece el mapa inicial seleccionado.
-    /// </summary>
     private void initializeMapDropdown()
     {
-        if (mapsDropdown == null || availableMaps == null || availableMaps.Length == 0)
-        {
-            Debug.LogWarning("[MainMenu] Dropdown de mapas no configurado.");
-            return;
-        }
-
+        if (mapsDropdown == null || availableMaps == null || availableMaps.Length == 0) return;
         mapsDropdown.ClearOptions();
-
         List<TMP_Dropdown.OptionData> options = new List<TMP_Dropdown.OptionData>();
-        foreach (MapConfig map in availableMaps)
-        {
-            options.Add(new TMP_Dropdown.OptionData(map != null ? map.mapName : "Sin nombre"));
-        }
-
+        foreach (MapConfig map in availableMaps) options.Add(new TMP_Dropdown.OptionData(map != null ? map.mapName : "Sin nombre"));
         mapsDropdown.AddOptions(options);
         mapsDropdown.value = 0;
         mapsDropdown.RefreshShownValue();
         mapsDropdown.onValueChanged.AddListener(onMapDropdownChanged);
-
         applySelectedMap(0);
     }
 
-    /// <summary>
-    /// Aplica el mapa seleccionado cuando cambia el valor del dropdown.
-    /// </summary>
-    private void onMapDropdownChanged(int index)
-    {
-        applySelectedMap(index);
-    }
-
-    /// <summary>
-    /// Guarda en GameManager el mapa correspondiente al índice indicado.
-    /// </summary>
+    private void onMapDropdownChanged(int index) { applySelectedMap(index); }
     private void applySelectedMap(int index)
     {
         if (availableMaps == null || index < 0 || index >= availableMaps.Length) return;
-        if (GameManager.Instance == null) return;
-
-        GameManager.Instance.SelectedMapConfig = availableMaps[index];
-        Debug.Log($"[MainMenu] Mapa seleccionado: {availableMaps[index].mapName}");
+        if (GameManager.Instance != null) GameManager.Instance.SelectedMapConfig = availableMaps[index];
     }
 }
