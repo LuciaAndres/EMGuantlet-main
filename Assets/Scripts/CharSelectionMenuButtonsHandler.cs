@@ -1,7 +1,8 @@
 ﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 using Unity.Netcode; 
-using UnityEngine.UI; 
+using UnityEngine.UI;
+using TMPro;
 
 public class CharSelectionMenuButtonsHandler : MonoBehaviour
 {
@@ -12,15 +13,38 @@ public class CharSelectionMenuButtonsHandler : MonoBehaviour
     [SerializeField] private PlayerStats yellowCharacterStats;
 
     [Header("Multiplayer UI")]
-    [SerializeField] private Button startGameButton; 
+    [SerializeField] private Button startGameButton;
+
+    [SerializeField] private TextMeshProUGUI[] playerSlotsTexts;
 
     private void Start()
     {
-        // SOLO VISIBLE SI ERES EL HOST
+        // Solo ve el host el boton de start
         if (startGameButton != null)
         {
-            startGameButton.gameObject.SetActive(NetworkManager.Singleton.IsServer);
+            startGameButton.gameObject.SetActive(NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer);
         }
+
+        // subscricion de eventos
+        if (NetworkLobbyManager.Instance != null)
+        {
+            NetworkLobbyManager.Instance.LobbyPlayers.OnListChanged += HandleLobbyListChanged;
+            UpdateLobbyUI(); // Pintamos los textos nada más entrar
+        }
+    }
+
+    //para desubscribirnos
+    private void OnDestroy()
+    {
+        if (NetworkLobbyManager.Instance != null)
+        {
+            NetworkLobbyManager.Instance.LobbyPlayers.OnListChanged -= HandleLobbyListChanged;
+        }
+    }
+
+    private void HandleLobbyListChanged(NetworkListEvent<PlayerLobbyState> changeEvent)
+    {
+        UpdateLobbyUI();
     }
 
     public void OnBackButtonClicked()
@@ -65,5 +89,41 @@ public class CharSelectionMenuButtonsHandler : MonoBehaviour
             // ES EL DE NETCODE PARA LLEVAR A TODOS A LA NUEVA ESCENA, NO AL HOST SOLO
             NetworkManager.Singleton.SceneManager.LoadScene(SceneNames.PlaygroundLevel, LoadSceneMode.Single);
         }
+    }
+
+    private void UpdateLobbyUI()
+    {
+        if (playerSlotsTexts == null || playerSlotsTexts.Length == 0) return;
+
+        var lobbyPlayers = NetworkLobbyManager.Instance.LobbyPlayers;
+
+        // los hucos de texto en pantalla
+        for (int i = 0; i < playerSlotsTexts.Length; i++)
+        {
+            if (i < lobbyPlayers.Count)
+            {
+                // se pone el nombre si hay jugador
+                PlayerLobbyState state = lobbyPlayers[i];
+                string colorName = GetColorName(state.CharacterIndex);
+                playerSlotsTexts[i].text = $"Jugador {i + 1}: {colorName}";
+            }
+            else
+            {
+                // el jugador no se ha conectado
+                playerSlotsTexts[i].text = "Esperando jugador...";
+            }
+        }
+    }
+
+    private string GetColorName(int index)
+    {
+        return index switch
+        {
+            0 => "Verde",
+            1 => "Morado",
+            2 => "Rojo",
+            3 => "Amarillo",
+            -1 => "Eligiendo..." // - 1 es que no pulsó nad
+        };
     }
 }
