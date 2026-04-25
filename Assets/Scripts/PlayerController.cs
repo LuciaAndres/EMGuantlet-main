@@ -1,15 +1,24 @@
 ﻿using UnityEngine;
 using UnityEngine.InputSystem;
+using Unity.Netcode;  //para que funcione
+using Unity.Netcode.Components; //para apagar la red
 
 public class PlayerController : CharController
 {
+    [Header("Multiplayer Stats (0:Green, 1:Purple, 2:Red, 3:Yellow)")]
+    [SerializeField] private PlayerStats[] availableStats;
+
+    // Variable de red para nuestro color
+    private NetworkVariable<int> netCharacterIndex = new NetworkVariable<int>(-1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
     protected int damageToEnemy;
     protected float attackCooldown;
-
     private PlayerControls controls;
 
     public bool IsAttacking { get; private set; } = false;
     public int DamageToEnemy => damageToEnemy;
+
+    private SpriteRenderer spriteRenderer;
 
     /// <summary>
     /// Inicializa controles de entrada y registra el jugador local en el gestor global.
@@ -17,17 +26,111 @@ public class PlayerController : CharController
     protected override void Awake()
     {
         base.Awake();
-        controls = new PlayerControls();
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
-        controls.Player.Move.performed += ctx => movement = ctx.ReadValue<Vector2>();
-        controls.Player.Move.canceled += _ => movement = Vector2.zero;
+        // se apagan fisicas para no chocar cuando se crea todo
+        if (characterCollider != null) characterCollider.enabled = false;
 
-        // ✅ Ocultar hasta que LevelGenerator lo reposicione
-        gameObject.SetActive(false);
+        // invisible para el bug del menu
+        if (spriteRenderer != null) spriteRenderer.enabled = false;
+    }
 
-        UniqueEntity uniqueEntity = GetComponent<UniqueEntity>();
-        if (GameManager.Instance != null)
-            GameManager.Instance.RegisterLocalPlayer(this, uniqueEntity);
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        if (IsOwner)
+        {
+            controls = new PlayerControls();
+            controls.Enable();
+            controls.Player.Move.performed += ctx => movement = ctx.ReadValue<Vector2>();
+            controls.Player.Move.canceled += _ => movement = Vector2.zero;
+            controls.Player.Attack.performed += onAttack;
+
+            UniqueEntity uniqueEntity = GetComponent<UniqueEntity>();
+            if (GameManager.Instance != null)
+                GameManager.Instance.RegisterLocalPlayer(this, uniqueEntity);
+
+            // tp al inicio, lo calcula el dusñeo
+            StartCoroutine(WaitAndTeleportToSpawn());
+        }
+
+        // subscripcion al cambio de color
+        netCharacterIndex.OnValueChanged += (oldVal, newVal) => ApplyNetworkedStats(newVal);
+        if (netCharacterIndex.Value != -1)
+        {
+            ApplyNetworkedStats(netCharacterIndex.Value);
+        }
+    }
+
+    // en funcion del index del jugador aplica las stats al mismo
+    private void ApplyNetworkedStats(int index)
+    {
+        if (availableStats != null && index >= 0 && index < availableStats.Length)
+        {
+            ApplyCharacterStats(availableStats[index]);
+        }
+    }
+
+    private System.Collections.IEnumerator WaitAndTeleportToSpawn()
+    {
+        LevelGenerator generator = FindFirstObjectByType<LevelGenerator>();
+
+        // eimre qe no estemos en la partida no hace nada
+        while (generator == null || generator.ServerSpawnPosition.Value == Vector3.zero)
+        {
+            yield return null;
+            generator = FindFirstObjectByType<LevelGenerator>();
+        }
+
+        // lee el color
+        int myIndex = 0;
+        if (GameManager.Instance != null && GameManager.Instance.SelectedCharacterStats != null && availableStats != null)
+        {
+            for (int i = 0; i < availableStats.Length; i++)
+            {
+                if (availableStats[i] != null && availableStats[i].characterName == GameManager.Instance.SelectedCharacterStats.characterName)
+                {
+                    myIndex = i;
+                    break;
+                }
+            }
+        }
+        netCharacterIndex.Value = myIndex;
+
+        // se apaga la red para no joder el tp
+        NetworkTransform netTransform = GetComponent<NetworkTransform>();
+        if (netTransform != null) netTransform.enabled = false;
+
+        // se separ el jugador del dueño
+        Vector3 offset = Vector3.zero;
+        if (OwnerClientId == 1) offset = new Vector3(1.5f, 0, 0);
+        else if (OwnerClientId == 2) offset = new Vector3(-1.5f, 0, 0);
+        else if (OwnerClientId == 3) offset = new Vector3(0, 1.5f, 0);
+
+        transform.position = generator.ServerSpawnPosition.Value + offset;
+
+        yield return new WaitForFixedUpdate();
+
+        // se enciende otra vez para ya jugar normal
+        if (characterCollider != null) characterCollider.enabled = true;
+        if (netTransform != null) netTransform.enabled = true;
+    }
+
+    protected override void Move()
+    {
+        if (!IsOwner) return;
+        base.Move();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        base.OnNetworkDespawn();
+        if (controls != null)
+        {
+            controls.Player.Attack.performed -= onAttack;
+            controls.Disable();
+        }
     }
 
     /// <summary>
@@ -36,12 +139,12 @@ public class PlayerController : CharController
     protected override void Start()
     {
         base.Start();
-
-        // Dispara eventos iniciales para actualizar el HUD
-        GameEvents.HealthChanged(health);
-        GameEvents.KeysChanged();
-        GameEvents.DiamondsChanged();
-
+        if (IsOwner)
+        {
+            GameEvents.HealthChanged(health);
+            GameEvents.KeysChanged();
+            GameEvents.DiamondsChanged();
+        }
         IsAttacking = false;
     }
 
@@ -59,9 +162,16 @@ public class PlayerController : CharController
         }
 
         checkDeath();
+
+        // si eres un sprite que ers invisible y hay un level generator en la escena ya vuelves a ser visible
+        if (spriteRenderer != null && !spriteRenderer.enabled && FindFirstObjectByType<LevelGenerator>() != null)
+        {
+            spriteRenderer.enabled = true;
+        }
     }
 
-    /// <summary>
+    /*
+     *  /// <summary>
     /// Activa el mapa de controles y suscribe la acción de ataque.
     /// </summary>
     private void OnEnable()
@@ -79,18 +189,16 @@ public class PlayerController : CharController
         controls.Disable();
     }
 
+     */
+
     /// <summary>
     /// Gestiona la muerte del jugador y lanza el flujo de fin de partida.
     /// </summary>
     public override void Die()
     {
         base.Die();
-
-        // Dispara evento de muerte
         GameEvents.PlayerDied();
-
         GameManager.Instance?.TriggerGameOver();
-
     }
 
     /// <summary>
@@ -99,8 +207,6 @@ public class PlayerController : CharController
     public override void TakeDamage(int amount, Vector2 knockbackDir)
     {
         base.TakeDamage(amount, knockbackDir);
-
-        // Dispara evento de cambio de salud
         GameEvents.HealthChanged(health);
     }
 
@@ -109,18 +215,9 @@ public class PlayerController : CharController
     /// </summary>
     public void ApplyCharacterStats(PlayerStats newStats)
     {
-        if (newStats == null)
-        {
-            Debug.LogWarning("[PlayerController] ApplyCharacterStats llamado con null");
-            return;
-        }
-
+        if (newStats == null) return;
         stats = newStats;
-
-        // Recargar todas las stats
         LoadStats();
-
-        Debug.Log($"[PlayerController] Stats aplicadas: {newStats.characterName}");
     }
 
     /// <summary>
@@ -128,40 +225,26 @@ public class PlayerController : CharController
     /// </summary>
     protected override void LoadStats()
     {
-        // ✅ PRIMERO: Intenta cargar desde GameManager (personaje seleccionado)
-        if (GameManager.Instance != null && GameManager.Instance.SelectedCharacterStats != null)
-        {
-            stats = GameManager.Instance.SelectedCharacterStats;
-            Debug.Log($"[PlayerController] Cargando personaje seleccionado: {stats.characterName}");
-        }
-
-        // Si no hay personaje seleccionado, usa el asignado en el prefab (fallback)
-        if (stats == null)
-        {
-            Debug.LogWarning("[PlayerController] No hay personaje seleccionado, usando stats por defecto del prefab");
-        }
-
         base.LoadStats();
-
-        // ✅ Haz casting del campo heredado
         PlayerStats playerStats = stats as PlayerStats;
 
         if (playerStats != null)
         {
             // Aplica el bonus de velocidad del jugador
+
             moveSpeed *= playerStats.speedBonus;
-            
+
             // Carga stats específicas del jugador
             damageToEnemy = playerStats.attackDamage;
             attackCooldown = playerStats.attackCooldown;
         }
-        else
+        else            
+        // Valores por defecto si no hay PlayerStats
+
         {
-            // Valores por defecto si no hay PlayerStats
-            Debug.LogWarning($"[{gameObject.name}] No tiene PlayerStats asignado. Usando valores por defecto.");
             damageToEnemy = 50;
             attackCooldown = 0.5f;
-            moveSpeed *= 1.25f; // Bonus por defecto
+            moveSpeed *= 1.25f;
         }
     }
 
@@ -170,15 +253,9 @@ public class PlayerController : CharController
     /// </summary>
     private void checkDeath()
     {
-        if (health <= 0 && !isDead)
-        {
-            Die();
-        }
+        if (health <= 0 && !isDead) Die();
     }
 
-    /// <summary>
-    /// Inicia la animación de ataque y programa su final según el cooldown.
-    /// </summary>
     private void onAttack(InputAction.CallbackContext context)
     {
         animator.SetTrigger("Attack");
@@ -186,9 +263,6 @@ public class PlayerController : CharController
         Invoke(nameof(endAttack), attackCooldown);
     }
 
-    /// <summary>
-    /// Finaliza el estado de ataque del jugador.
-    /// </summary>
     private void endAttack()
     {
         IsAttacking = false;

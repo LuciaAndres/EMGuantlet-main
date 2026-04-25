@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using UnityEngine.Tilemaps;
+using Unity.Netcode;
 
 [System.Serializable]
 public class WeightedTilemapFiller
@@ -26,7 +27,7 @@ public class RingSettings
     public float decorativeElementPercentage = 0.05f;
 }
 
-public class LevelGenerator : MonoBehaviour
+public class LevelGenerator : NetworkBehaviour
 {
     [SerializeField] private TilemapFiller tilemapFiller;
 
@@ -55,6 +56,10 @@ public class LevelGenerator : MonoBehaviour
 
     private MapConfig activeConfig => GameManager.Instance?.SelectedMapConfig ?? defaultMapConfig;
 
+    //las variables de red para sincronizaer
+    private NetworkVariable<int> mapSeed = new NetworkVariable<int>(0);
+    public NetworkVariable<Vector3> ServerSpawnPosition = new NetworkVariable<Vector3>(Vector3.zero);
+
     /// <summary>
     /// Inicializa referencias de escena y suscribe el evento de registro de jugador local.
     /// </summary>
@@ -75,18 +80,36 @@ public class LevelGenerator : MonoBehaviour
     /// <summary>
     /// Garantiza la configuración de mapa activa y ejecuta la generación inicial del nivel.
     /// </summary>
-    private void Start()
+    // Sustituo de start que se ejecuta cada vez que se coneta
+    public override void OnNetworkSpawn()
     {
-        if (GameManager.Instance != null && GameManager.Instance.SelectedMapConfig == null)
+        if (IsServer)
         {
-            GameManager.Instance.SelectedMapConfig = defaultMapConfig;
-            Debug.Log("[LevelGenerator] Usando MapConfig por defecto.");
-        }
+            // El Host crea la semilla
+            mapSeed.Value = UnityEngine.Random.Range(1, 999999);
 
-        generateLevel();
-        preparePlayerSpawn();
+            // calcula y envia las coordnadas de spawn
+            if (tryCalculateSpawnPos(out Vector3 spawnPos))
+            {
+                ServerSpawnPosition.Value = spawnPos;
+            }
+
+            GenerateSharedMap();
+        }
+        else
+        {
+            // el cliente espera la llegada
+            if (mapSeed.Value != 0) GenerateSharedMap();
+            mapSeed.OnValueChanged += (oldValue, newValue) => { GenerateSharedMap(); };
+        }
     }
 
+    private void GenerateSharedMap()
+    {
+        // los dos usan la misma semilla de mapa
+        UnityEngine.Random.InitState(mapSeed.Value);
+        generateLevel();
+    }
     /// <summary>
     /// Genera la sala del tesoro y los anillos del mapa.
     /// </summary>

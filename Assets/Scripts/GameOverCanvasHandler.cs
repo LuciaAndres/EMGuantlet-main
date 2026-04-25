@@ -1,5 +1,6 @@
-using TMPro;
+ï»¿using TMPro;
 using UnityEngine;
+using Unity.Netcode;
 using UnityEngine.SceneManagement;
 
 public class GameOverCanvasHandler : MonoBehaviour
@@ -9,7 +10,7 @@ public class GameOverCanvasHandler : MonoBehaviour
     [SerializeField] private TextMeshProUGUI enemiesKilledText;
 
     /// <summary>
-    /// Inicializa la pantalla mostrando las estadísticas finales de la partida.
+    /// Inicializa la pantalla mostrando las estadÃ­sticas finales de la partida.
     /// </summary>
     private void Start()
     {
@@ -17,10 +18,22 @@ public class GameOverCanvasHandler : MonoBehaviour
     }
 
     /// <summary>
-    /// Carga el menú principal al pulsar el botón de volver.
+    /// Carga el menÃº principal al pulsar el botÃ³n de volver.
     /// </summary>
     public void OnBackButtonClicked()
     {
+        // apaga la red antes de volver al menu
+        if (NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.Shutdown();
+        }
+
+        //recolector de basura del gamemanager
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ResetGameData();
+        }
+
         SceneManager.LoadScene(SceneNames.MainMenu);
     }
 
