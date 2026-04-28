@@ -19,7 +19,7 @@ public class ChestController : MonoBehaviour
     /// </summary>
     private void Awake()
     {
-        // ✅ Obtener UniqueEntity
+        //  Obtener UniqueEntity
         uniqueEntity = GetComponent<UniqueEntity>();
         
         // Validación del tipo correcto
@@ -40,13 +40,20 @@ public class ChestController : MonoBehaviour
         PlayerController player = collision.gameObject.GetComponent<PlayerController>();
         if (player == null) return;
 
-        // ✅ Log con IDs para debugging multiplayer
+        //  Log con IDs para debugging multiplayer
         Debug.Log($"[{EntityType}:{EntityId}] opened by [Player:{player.EntityId}]");
-
+        /*
         if (GameManager.Instance != null && GameManager.Instance.TryTriggerVictory(player.EntityId, EntityId))
         {
             collected = true;
         }
+        */
+        if (player == null || !player.IsOwner) return;
+
+        collected = true;
+
+        // Llamamos al metodo para cambiar de escena a la de victoria a todos
+        player.TriggerVictoryServerRpc();
     }
 
 

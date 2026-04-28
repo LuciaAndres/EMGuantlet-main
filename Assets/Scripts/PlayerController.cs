@@ -1,7 +1,8 @@
-﻿using UnityEngine;
-using UnityEngine.InputSystem;
-using Unity.Netcode;  //para que funcione
+﻿using Unity.Netcode;  //para que funcione
 using Unity.Netcode.Components; //para apagar la red
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 public class PlayerController : CharController
 {
@@ -39,8 +40,33 @@ public class PlayerController : CharController
     {
         base.OnNetworkSpawn();
 
+        // todos se van a la scena
+        StartCoroutine(WaitAndTeleportToSpawn());
+
         if (IsOwner)
         {
+            //DEBUG 
+            if (GameManager.Instance != null && GameManager.Instance.LocalPlayerController != null)
+            {
+                Debug.LogError("El objeto [" + gameObject.name + "] ES EL CULPABLE.");
+                return;
+            }
+
+            int myIndex = 0;
+            if (GameManager.Instance != null && GameManager.Instance.SelectedCharacterStats != null && availableStats != null)
+            {
+                for (int i = 0; i < availableStats.Length; i++)
+                {
+                    if (availableStats[i] != null && availableStats[i].characterName == GameManager.Instance.SelectedCharacterStats.characterName)
+                    {
+                        myIndex = i;
+                        break;
+                    }
+                }
+            }
+            netCharacterIndex.Value = myIndex;
+
+            // controles para cada ubno
             controls = new PlayerControls();
             controls.Enable();
             controls.Player.Move.performed += ctx => movement = ctx.ReadValue<Vector2>();
@@ -50,18 +76,18 @@ public class PlayerController : CharController
             UniqueEntity uniqueEntity = GetComponent<UniqueEntity>();
             if (GameManager.Instance != null)
                 GameManager.Instance.RegisterLocalPlayer(this, uniqueEntity);
-
-            // tp al inicio, lo calcula el dusñeo
-            StartCoroutine(WaitAndTeleportToSpawn());
         }
 
-        // subscripcion al cambio de color
         netCharacterIndex.OnValueChanged += (oldVal, newVal) => ApplyNetworkedStats(newVal);
         if (netCharacterIndex.Value != -1)
         {
             ApplyNetworkedStats(netCharacterIndex.Value);
         }
     }
+
+  
+    
+
 
     // en funcion del index del jugador aplica las stats al mismo
     private void ApplyNetworkedStats(int index)
@@ -98,7 +124,7 @@ public class PlayerController : CharController
         }
         netCharacterIndex.Value = myIndex;
 
-        // se apaga la red para no joder el tp
+        // se desativa el networktransform para no joder el tp
         NetworkTransform netTransform = GetComponent<NetworkTransform>();
         if (netTransform != null) netTransform.enabled = false;
 
@@ -112,7 +138,7 @@ public class PlayerController : CharController
 
         yield return new WaitForFixedUpdate();
 
-        // se enciende otra vez para ya jugar normal
+        // se activa otra vez para ya jugar normal
         if (characterCollider != null) characterCollider.enabled = true;
         if (netTransform != null) netTransform.enabled = true;
     }
@@ -266,5 +292,13 @@ public class PlayerController : CharController
     private void endAttack()
     {
         IsAttacking = false;
+    }
+
+    [ServerRpc]
+    public void TriggerVictoryServerRpc()
+    {
+        Debug.Log("Victoria....");
+       
+        NetworkManager.Singleton.SceneManager.LoadScene(SceneNames.VictoryScene, LoadSceneMode.Single);
     }
 }

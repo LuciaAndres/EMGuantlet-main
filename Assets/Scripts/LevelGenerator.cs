@@ -66,7 +66,7 @@ public class LevelGenerator : NetworkBehaviour
     private void Awake()
     {
         tilemap = FindFirstObjectByType<Tilemap>();
-        GameEvents.OnLocalPlayerRegistered += onLocalPlayerRegistered;
+        //GameEvents.OnLocalPlayerRegistered += onLocalPlayerRegistered;
     }
 
     /// <summary>
