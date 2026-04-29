@@ -175,8 +175,16 @@ public class GameManager : MonoBehaviour
         Debug.Log($"selected character is {selectedCharacter.characterName}");
         SelectedCharacterStats = selectedCharacter;
         ResetGameData();
-
-        SceneManager.LoadScene(SceneNames.PlaygroundLevel);
+        // el host manda a todos a la escena
+        if (Unity.Netcode.NetworkManager.Singleton.IsServer)
+        {
+            Unity.Netcode.NetworkManager.Singleton.SceneManager.LoadScene(SceneNames.PlaygroundLevel, LoadSceneMode.Single);
+        }
+        else
+        {
+            //offline
+            SceneManager.LoadScene(SceneNames.PlaygroundLevel);
+        }
     }
 
     /// <summary>

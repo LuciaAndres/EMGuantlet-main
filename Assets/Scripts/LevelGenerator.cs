@@ -50,6 +50,21 @@ public class LevelGenerator : NetworkBehaviour
     [Tooltip("Orden: 0=Decorada, 1=Baldosas, 2=Madera, 3=Baldosas rotas, 4=Patio, 5=Bosque exterior")]
     [SerializeField] private RingSettings[] castleRings;
 
+    //Para saber los limites:
+    public Bounds OuterRingBounds
+    {
+        get
+        {
+            if (tilemap != null)
+            {
+                // ajusta a los limites
+                tilemap.CompressBounds();
+                return tilemap.localBounds;
+            }
+            return new Bounds(Vector3.zero, Vector3.zero);
+        }
+    }
+
     private Tilemap tilemap;
     private bool hasPendingSpawn = false;
     private Vector3 pendingSpawnPos;
@@ -85,20 +100,14 @@ public class LevelGenerator : NetworkBehaviour
     {
         if (IsServer)
         {
-            // El Host crea la semilla
             mapSeed.Value = UnityEngine.Random.Range(1, 999999);
 
-            // calcula y envia las coordnadas de spawn
-            if (tryCalculateSpawnPos(out Vector3 spawnPos))
-            {
-                ServerSpawnPosition.Value = spawnPos;
-            }
-
+            //crea la semilla
             GenerateSharedMap();
+
         }
         else
         {
-            // el cliente espera la llegada
             if (mapSeed.Value != 0) GenerateSharedMap();
             mapSeed.OnValueChanged += (oldValue, newValue) => { GenerateSharedMap(); };
         }
@@ -106,7 +115,7 @@ public class LevelGenerator : NetworkBehaviour
 
     private void GenerateSharedMap()
     {
-        // los dos usan la misma semilla de mapa
+        //se usa ls misma semilla de maap
         UnityEngine.Random.InitState(mapSeed.Value);
         generateLevel();
     }
@@ -163,6 +172,9 @@ public class LevelGenerator : NetworkBehaviour
         int roomSize = cfg != null ? cfg.treasureRoomSize : 7;
         Vector2Int innerSize = new Vector2Int(roomSize, roomSize);
 
+        //para saber los limites al final
+        Vector2Int finalInnerSize = Vector2Int.zero;
+
         for (int i = 0; i < castleRings.Length; i++)
         {
             RingSettings ring = castleRings[i];
@@ -199,8 +211,17 @@ public class LevelGenerator : NetworkBehaviour
                 innerSize.x + 2 * ringWidth,
                 innerSize.y + 2 * ringWidth
             );
+
+            finalInnerSize = innerSize;
         }
-    }
+
+        //limites del anillo exteriori
+        //finalInnerSize = tamaño exterior.
+        //el 0es el centro y va hacia afuera
+        float halfWidth = finalInnerSize.x / 2f;
+        float halfHeight = finalInnerSize.y / 2f;
+       
+}
 
     /// <summary>
     /// Determina si un anillo intermedio está activado en la configuración del mapa.

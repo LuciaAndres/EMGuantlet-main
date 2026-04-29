@@ -1,8 +1,9 @@
 ﻿using Unity.Netcode;  //para que funcione
-using Unity.Netcode.Components; //para apagar la red
+//using Unity.Netcode.Components;  
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
 
 public class PlayerController : CharController
 {
@@ -36,22 +37,179 @@ public class PlayerController : CharController
         if (spriteRenderer != null) spriteRenderer.enabled = false;
     }
 
+    /* public override void OnNetworkSpawn()
+     {
+         base.OnNetworkSpawn();
+
+         // todos se van a la scena
+         StartCoroutine(WaitAndTeleportToSpawn());
+
+         if (IsOwner)
+         {
+             //DEBUG 
+             if (GameManager.Instance != null && GameManager.Instance.LocalPlayerController != null)
+             {
+                 Debug.LogError("El objeto [" + gameObject.name + "] ES EL CULPABLE.");
+                 return;
+             }
+
+             int myIndex = 0;
+             if (GameManager.Instance != null && GameManager.Instance.SelectedCharacterStats != null && availableStats != null)
+             {
+                 for (int i = 0; i < availableStats.Length; i++)
+                 {
+                     if (availableStats[i] != null && availableStats[i].characterName == GameManager.Instance.SelectedCharacterStats.characterName)
+                     {
+                         myIndex = i;
+                         break;
+                     }
+                 }
+             }
+             netCharacterIndex.Value = myIndex;
+
+             // controles para cada ubno
+             controls = new PlayerControls();
+             controls.Enable();
+             controls.Player.Move.performed += ctx => movement = ctx.ReadValue<Vector2>();
+             controls.Player.Move.canceled += _ => movement = Vector2.zero;
+             controls.Player.Attack.performed += onAttack;
+
+             UniqueEntity uniqueEntity = GetComponent<UniqueEntity>();
+             if (GameManager.Instance != null)
+                 GameManager.Instance.RegisterLocalPlayer(this, uniqueEntity);
+         }
+
+         netCharacterIndex.OnValueChanged += (oldVal, newVal) => ApplyNetworkedStats(newVal);
+         if (netCharacterIndex.Value != -1)
+         {
+             ApplyNetworkedStats(netCharacterIndex.Value);
+         }
+     }
+    */
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
+        Debug.Log($"Nace jugador {IsOwner}");
 
-        // todos se van a la scena
-        StartCoroutine(WaitAndTeleportToSpawn());
+        if (IsServer)
+        {
+            StartCoroutine(HostAssignSpawnPositions());
+        }
 
         if (IsOwner)
         {
-            //DEBUG 
+            // debig para el bug
             if (GameManager.Instance != null && GameManager.Instance.LocalPlayerController != null)
             {
-                Debug.LogError("El objeto [" + gameObject.name + "] ES EL CULPABLE.");
+                Debug.LogError("🚨 ¡CAZADO! Intento de clon bloqueado.");
                 return;
             }
 
+            //color
+            int myIndex = 0; //verde
+            if (GameManager.Instance != null && GameManager.Instance.SelectedCharacterStats != null)
+            {
+                Debug.Log($"[COLOR] {GameManager.Instance.SelectedCharacterStats.characterName}");
+
+                if (availableStats != null)
+                {
+                    for (int i = 0; i < availableStats.Length; i++)
+                    {
+                        if (availableStats[i] != null && availableStats[i].characterName == GameManager.Instance.SelectedCharacterStats.characterName)
+                        {
+                            myIndex = i;
+                            Debug.Log($"[COLOR] slot {i}");
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogWarning("Verde por defecto");
+            }
+
+            // se guarda
+            netCharacterIndex.Value = myIndex;
+
+            //cada un se lo aplica
+            ApplyNetworkedStats(myIndex);
+
+            // contorles
+            controls = new PlayerControls();
+            controls.Enable();
+            controls.Player.Move.performed += ctx => movement = ctx.ReadValue<Vector2>();
+            controls.Player.Move.canceled += _ => movement = Vector2.zero;
+            controls.Player.Attack.performed += onAttack;
+
+            UniqueEntity uniqueEntity = GetComponent<UniqueEntity>();
+            if (GameManager.Instance != null)
+                GameManager.Instance.RegisterLocalPlayer(this, uniqueEntity);
+        }
+
+        // subscripcion al cambio de color
+        netCharacterIndex.OnValueChanged += (oldVal, newVal) => {
+            Debug.Log($"[COLOR] jugador red cambio de color al {newVal}");
+            ApplyNetworkedStats(newVal);
+        };
+
+        // se aplica al entrar trde
+        if (!IsOwner && netCharacterIndex.Value != -1)
+        {
+            ApplyNetworkedStats(netCharacterIndex.Value);
+        }
+    }
+
+    // spawn en esquinas
+    private System.Collections.IEnumerator HostAssignSpawnPositions()
+    {
+        LevelGenerator generator = FindFirstObjectByType<LevelGenerator>();
+
+        // espera activa del mapa 
+        while (generator == null || generator.OuterRingBounds.size.x == 0)
+        {
+            yield return null;
+            generator = FindFirstObjectByType<LevelGenerator>();
+        }
+
+        Bounds bounds = generator.OuterRingBounds;
+        Vector3 finalPos = Vector3.zero;
+
+        
+        float offset = 15.0f; //segundo anillo
+        //cada uno a una esquina
+        if (OwnerClientId == 0)
+        {
+            finalPos = new Vector3(bounds.min.x + offset, bounds.min.y + offset, 0);
+        }
+        else if (OwnerClientId == 1)
+        {
+            finalPos = new Vector3(bounds.max.x - offset, bounds.max.y - offset, 0);
+        }
+        else if (OwnerClientId == 2)
+        {
+            finalPos = new Vector3(bounds.min.x + offset, bounds.max.y - offset, 0);
+        }
+        else
+        {
+            finalPos = new Vector3(bounds.max.x - offset, bounds.min.y + offset, 0);
+        }
+
+        finalPos.z = 0f;
+
+        PlacePlayerClientRpc(finalPos);
+    }
+
+    [ClientRpc]
+    private void PlacePlayerClientRpc(Vector3 assignedPosition)
+    {
+        //hoat
+        if (IsOwner)
+        {
+            //esqiona
+            transform.position = assignedPosition;
+
+            //antes de hacerse visible se lee el color
             int myIndex = 0;
             if (GameManager.Instance != null && GameManager.Instance.SelectedCharacterStats != null && availableStats != null)
             {
@@ -64,40 +222,40 @@ public class PlayerController : CharController
                     }
                 }
             }
+
+            //lo mandamos
             netCharacterIndex.Value = myIndex;
+            ApplyNetworkedStats(myIndex);
+            Debug.Log($"[LLEGADA AL MAPA] Color: {myIndex}");
 
-            // controles para cada ubno
-            controls = new PlayerControls();
-            controls.Enable();
-            controls.Player.Move.performed += ctx => movement = ctx.ReadValue<Vector2>();
-            controls.Player.Move.canceled += _ => movement = Vector2.zero;
-            controls.Player.Attack.performed += onAttack;
-
-            UniqueEntity uniqueEntity = GetComponent<UniqueEntity>();
-            if (GameManager.Instance != null)
-                GameManager.Instance.RegisterLocalPlayer(this, uniqueEntity);
-        }
-
-        netCharacterIndex.OnValueChanged += (oldVal, newVal) => ApplyNetworkedStats(newVal);
-        if (netCharacterIndex.Value != -1)
-        {
-            ApplyNetworkedStats(netCharacterIndex.Value);
+            // sibiles
+            if (spriteRenderer != null) spriteRenderer.enabled = true;
+            if (characterCollider != null) characterCollider.enabled = true;
         }
     }
 
-  
-    
 
 
     // en funcion del index del jugador aplica las stats al mismo
     private void ApplyNetworkedStats(int index)
     {
-        if (availableStats != null && index >= 0 && index < availableStats.Length)
+        if (availableStats == null || availableStats.Length == 0)
+        {
+            Debug.LogError("error en los stats cabezon");
+            return;
+        }
+
+        if (index >= 0 && index < availableStats.Length)
         {
             ApplyCharacterStats(availableStats[index]);
+            Debug.Log($"jugador : {availableStats[index].characterName}");
+        }
+        else
+        {
+            Debug.LogError($" ERROR: {index}");
         }
     }
-
+    /*
     private System.Collections.IEnumerator WaitAndTeleportToSpawn()
     {
         LevelGenerator generator = FindFirstObjectByType<LevelGenerator>();
@@ -142,7 +300,7 @@ public class PlayerController : CharController
         if (characterCollider != null) characterCollider.enabled = true;
         if (netTransform != null) netTransform.enabled = true;
     }
-
+    */
     protected override void Move()
     {
         if (!IsOwner) return;
@@ -188,12 +346,6 @@ public class PlayerController : CharController
         }
 
         checkDeath();
-
-        // si eres un sprite que ers invisible y hay un level generator en la escena ya vuelves a ser visible
-        if (spriteRenderer != null && !spriteRenderer.enabled && FindFirstObjectByType<LevelGenerator>() != null)
-        {
-            spriteRenderer.enabled = true;
-        }
     }
 
     /*
@@ -256,21 +408,15 @@ public class PlayerController : CharController
 
         if (playerStats != null)
         {
-            // Aplica el bonus de velocidad del jugador
-
             moveSpeed *= playerStats.speedBonus;
-
-            // Carga stats específicas del jugador
             damageToEnemy = playerStats.attackDamage;
             attackCooldown = playerStats.attackCooldown;
-        }
-        else            
-        // Valores por defecto si no hay PlayerStats
 
-        {
-            damageToEnemy = 50;
-            attackCooldown = 0.5f;
-            moveSpeed *= 1.25f;
+            
+            if (playerStats.animatorController != null && animator != null)
+            {
+                animator.runtimeAnimatorController = playerStats.animatorController;
+            }
         }
     }
 
