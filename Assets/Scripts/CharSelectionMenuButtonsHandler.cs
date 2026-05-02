@@ -17,6 +17,13 @@ public class CharSelectionMenuButtonsHandler : MonoBehaviour
 
     [SerializeField] private TextMeshProUGUI[] playerSlotsTexts;
 
+
+    [Header("Buttons")]
+    [SerializeField] private Button greenButton;
+    [SerializeField] private Button purpleButton;
+    [SerializeField] private Button redButton;
+    [SerializeField] private Button yellowButton;
+
     private void Start()
     {
         // Solo ve el host el boton de start
@@ -80,13 +87,20 @@ public class CharSelectionMenuButtonsHandler : MonoBehaviour
 
     public void OnStartGameClicked()
     {
-       // OTRA COMPROBACION, SOLO EL HOST PUEDE CAMBIAR DE ESCENA
+        // solo el host puede cambiar de escnea
         if (NetworkManager.Singleton.IsServer)
         {
-            // REINICIAN LOS DATOS DE PARTIDAS ANTERIORES SI LOS HUBIERA
+            // solo se puede inciiar si hay mas de dos jugadores en la lista de los jugadreos
+            if (NetworkLobbyManager.Instance != null && NetworkLobbyManager.Instance.LobbyPlayers.Count < 2)
+            {
+                Debug.LogWarning("[Lobby] NONONONONNO");
+                return; 
+            }
+
+            // se reinician los datos de partidas anterir para evitar bugd
             GameManager.Instance?.ResetGameData();
 
-            // ES EL DE NETCODE PARA LLEVAR A TODOS A LA NUEVA ESCENA, NO AL HOST SOLO
+            // se lleva a todos
             NetworkManager.Singleton.SceneManager.LoadScene(SceneNames.PlaygroundLevel, LoadSceneMode.Single);
         }
     }
@@ -97,33 +111,55 @@ public class CharSelectionMenuButtonsHandler : MonoBehaviour
 
         var lobbyPlayers = NetworkLobbyManager.Instance.LobbyPlayers;
 
-        // los hucos de texto en pantalla
+        // si no hay suficientes jugadores no puede inciiar partida
+        if (startGameButton != null && NetworkManager.Singleton.IsServer)
+        {
+            startGameButton.interactable = lobbyPlayers.Count >= 2;
+        }
+
+        // banderas de colores
+        bool greenTaken = false;
+        bool purpleTaken = false;
+        bool redTaken = false;
+        bool yellowTaken = false;
+
+        // color de cada jugadror y referencia
         for (int i = 0; i < playerSlotsTexts.Length; i++)
         {
             if (i < lobbyPlayers.Count)
             {
-                // se pone el nombre si hay jugador
                 PlayerLobbyState state = lobbyPlayers[i];
                 string colorName = GetColorName(state.CharacterIndex);
                 playerSlotsTexts[i].text = $"Jugador {i + 1}: {colorName}";
+
+                // bloqueo del color
+                if (state.CharacterIndex == 0) greenTaken = true;
+                if (state.CharacterIndex == 1) purpleTaken = true;
+                if (state.CharacterIndex == 2) redTaken = true;
+                if (state.CharacterIndex == 3) yellowTaken = true;
             }
             else
             {
-                // el jugador no se ha conectado
                 playerSlotsTexts[i].text = "Esperando jugador...";
             }
         }
+
+        // los botones se bloquean
+        if (greenButton != null) greenButton.interactable = !greenTaken;
+        if (purpleButton != null) purpleButton.interactable = !purpleTaken;
+        if (redButton != null) redButton.interactable = !redTaken;
+        if (yellowButton != null) yellowButton.interactable = !yellowTaken;
     }
 
     private string GetColorName(int index)
     {
-        return index switch
+        return (index switch
         {
             0 => "Verde",
             1 => "Morado",
             2 => "Rojo",
             3 => "Amarillo",
             -1 => "Eligiendo..." // - 1 es que no pulsó nad
-        };
+        });
     }
 }

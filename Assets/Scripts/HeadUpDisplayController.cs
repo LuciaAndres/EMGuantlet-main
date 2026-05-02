@@ -48,6 +48,12 @@ public class HeadUpDisplayController : MonoBehaviour
     [SerializeField] private Sprite spriteEight;
     [SerializeField] private Sprite spriteNine;
 
+    [Header("UI Multijugador")]
+    [SerializeField] private TMPro.TextMeshProUGUI playerCountText;
+
+    private LevelGenerator levelGenerator;
+    private int lastPlayerCount = -1; //-1 para que se actuelice la rimera vez
+
     private HudBlock activeBlock;
 
     /// <summary>
@@ -212,5 +218,28 @@ public class HeadUpDisplayController : MonoBehaviour
             9 => spriteNine,
             _ => spriteZero
         };
+    }
+
+   
+    private void Update()
+    {
+        if (playerCountText == null) return;
+
+        // se busca el componente level generator
+        if (levelGenerator == null)
+        {
+            levelGenerator = FindFirstObjectByType<LevelGenerator>();
+            if (levelGenerator == null) return; 
+        }
+
+        // se lee la variable
+        int currentCount = levelGenerator.ConnectedPlayersCount.Value;
+
+        // si es diferente se repinta
+        if (currentCount != lastPlayerCount)
+        {
+            lastPlayerCount = currentCount;
+            playerCountText.text = $"Jugadores online: {currentCount}";
+        }
     }
 }

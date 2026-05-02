@@ -75,6 +75,9 @@ public class LevelGenerator : NetworkBehaviour
     private NetworkVariable<int> mapSeed = new NetworkVariable<int>(0);
     public NetworkVariable<Vector3> ServerSpawnPosition = new NetworkVariable<Vector3>(Vector3.zero);
 
+    // para el contador de jugadores, la escribe el host y todos la leen
+    public NetworkVariable<int> ConnectedPlayersCount = new NetworkVariable<int>(0);
+
     /// <summary>
     /// Inicializa referencias de escena y suscribe el evento de registro de jugador local.
     /// </summary>
@@ -101,15 +104,55 @@ public class LevelGenerator : NetworkBehaviour
         if (IsServer)
         {
             mapSeed.Value = UnityEngine.Random.Range(1, 999999);
-
-            //crea la semilla
             GenerateSharedMap();
 
+            // se inicializa el contador con los que hay ( la longitus de la lista)
+            ConnectedPlayersCount.Value = NetworkManager.Singleton.ConnectedClients.Count;
+
+            // suscribirmos al cambio de longitud de la lista para actuaizarla
+            NetworkManager.Singleton.OnClientConnectedCallback += HandleClientConnected;
+            NetworkManager.Singleton.OnClientDisconnectCallback += HandleClientDisconnect;
         }
         else
         {
             if (mapSeed.Value != 0) GenerateSharedMap();
             mapSeed.OnValueChanged += (oldValue, newValue) => { GenerateSharedMap(); };
+        }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        // solo actualiza si es el host
+        if (IsServer)
+        {
+            NetworkManager.Singleton.OnClientConnectedCallback -= HandleClientConnected;
+            NetworkManager.Singleton.OnClientDisconnectCallback -= HandleClientDisconnect;
+        }
+    }
+
+    //asigna la longitud de la lista a la variable
+    private void HandleClientConnected(ulong clientId)
+    {
+        ConnectedPlayersCount.Value = NetworkManager.Singleton.ConnectedClients.Count;
+    }
+
+    private void HandleClientDisconnect(ulong clientId)
+    {
+        if (NetworkManager.Singleton != null)
+        {
+            int currentCount = NetworkManager.Singleton.ConnectedClients.Count;
+
+           //si sigue en la lista interna de unty solo restamos 1
+            if (NetworkManager.Singleton.ConnectedClients.ContainsKey(clientId))
+            {
+               //porque sabemos que va a desaparecer en nada
+                ConnectedPlayersCount.Value = currentCount - 1;
+            }
+            else
+            {
+                //si unnity lo ha brrado de la lista actuaizamos simplemente
+                ConnectedPlayersCount.Value = currentCount;
+            }
         }
     }
 
