@@ -176,7 +176,16 @@ public class PlayerController : CharController
         Vector3 finalPos = Vector3.zero;
 
         
-        float offset = 15.0f; //segundo anillo
+        float offset = 15.0f; // por defecto 1º mapa
+        if (GameManager.Instance != null && GameManager.Instance.SelectedMapConfig != null)
+        {
+            // el grosos del bosue del mapa seleccionado
+            int forestWidth = GameManager.Instance.SelectedMapConfig.outerForest.ringWidth;
+
+            // Cálculo exacto:
+            // Muro exterior + ancho del bosque + muro separador +2 pasosd e seguridad
+            offset = 1f + forestWidth + 1f + 2f;
+        }
         //cada uno a una esquina
         if (OwnerClientId == 0)
         {
@@ -232,6 +241,8 @@ public class PlayerController : CharController
             if (spriteRenderer != null) spriteRenderer.enabled = true;
             if (characterCollider != null) characterCollider.enabled = true;
         }
+        if (spriteRenderer != null) spriteRenderer.enabled = true;
+        if (characterCollider != null) characterCollider.enabled = true;
     }
 
 
@@ -374,9 +385,31 @@ public class PlayerController : CharController
     /// </summary>
     public override void Die()
     {
-        base.Die();
-        GameEvents.PlayerDied();
-        GameManager.Instance?.TriggerGameOver();
+        if (isDead) return;
+        isDead = true;
+        health = 0;
+        animator.SetBool("IsDead", true);
+
+        if (IsOwner)
+        {
+            GameEvents.PlayerDied();
+
+            // el servidor borra nuestro personaje
+            DespawnPlayerServerRpc();
+
+            // gameover personal
+            GameManager.Instance?.TriggerGameOver();
+        }
+    }
+
+    [ServerRpc]
+    private void DespawnPlayerServerRpc()
+    {
+        NetworkObject netObj = GetComponent<NetworkObject>();
+        if (netObj != null && netObj.IsSpawned)
+        {
+            netObj.Despawn(true); // propaga la destruccion del personaje
+        }
     }
 
     /// <summary>
@@ -386,6 +419,24 @@ public class PlayerController : CharController
     {
         base.TakeDamage(amount, knockbackDir);
         GameEvents.HealthChanged(health);
+    }
+
+    [ClientRpc]
+    private void TakeDamageClientRpc(int amount, Vector2 knockbackDir)
+    {
+        base.TakeDamage(amount, knockbackDir);
+
+        if (IsOwner) // Solo host actualza
+        {
+            GameEvents.HealthChanged(health);
+        }
+    }
+    public void TakeDamageServerAuthoritative(int amount, Vector2 knockbackDir)
+    {
+        if (IsServer)
+        {
+            TakeDamageClientRpc(amount, knockbackDir);
+        }
     }
 
     /// <summary>
@@ -428,16 +479,30 @@ public class PlayerController : CharController
         if (health <= 0 && !isDead) Die();
     }
 
-    private void onAttack(InputAction.CallbackContext context)
+    private void onAttack(UnityEngine.InputSystem.InputAction.CallbackContext context)
     {
         animator.SetTrigger("Attack");
         IsAttacking = true;
+
+        // avisamos que atacamos
+        SetAttackStateServerRpc(true);
+
         Invoke(nameof(endAttack), attackCooldown);
     }
 
     private void endAttack()
     {
         IsAttacking = false;
+
+        //avisamos que ya no atacamos
+        SetAttackStateServerRpc(false);
+    }
+
+    // actualiza el host
+    [ServerRpc]
+    private void SetAttackStateServerRpc(bool state)
+    {
+        IsAttacking = state;
     }
 
     [ServerRpc]

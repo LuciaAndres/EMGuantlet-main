@@ -18,7 +18,18 @@ public class GameManager : MonoBehaviour
     public Transform LocalPlayerTransform => LocalPlayerController != null ? LocalPlayerController.transform : null;
     public UniqueEntity LocalPlayerEntity { get; private set; }
 
-    public int EnemiesKilled { get; private set; }
+    public int EnemiesKilled //lee la cifra directamente de la variable global de red
+    {
+        get
+        {
+            LevelGenerator generator = FindFirstObjectByType<LevelGenerator>();
+            if (generator != null)
+            {
+                return generator.GlobalEnemiesKilled.Value;
+            }
+            return 0; // Si no hay nivel, devuelve 0
+        }
+    }
     public PlayerStats SelectedCharacterStats { get; set; }
     public MapConfig SelectedMapConfig { get; set; }
 
@@ -91,6 +102,7 @@ public class GameManager : MonoBehaviour
     /// <summary>
     /// Reinicia los datos de partida del jugador y estadísticas globales.
     /// </summary>
+    /*
     public void ResetGameData()
     {
         playerState?.ResetState();
@@ -105,7 +117,7 @@ public class GameManager : MonoBehaviour
         EnemiesKilled++;
         GameEvents.EnemyKilled(EnemiesKilled);
     }
-
+   */
     /// <summary>
     /// Devuelve la cantidad actual de llaves del jugador local.
     /// </summary>
@@ -186,6 +198,15 @@ public class GameManager : MonoBehaviour
             SceneManager.LoadScene(SceneNames.PlaygroundLevel);
         }
     }
+    /// <summary>
+    /// Reinicia los datos de partida del jugador y estadísticas globales.
+    /// </summary>
+    public void ResetGameData()
+    {
+        playerState?.ResetState();
+        // al cargar el mapa asigna enemies killed a 0
+    }
+
 
     /// <summary>
     /// Guarda mapa y personaje seleccionados e inicia la partida.

@@ -78,6 +78,10 @@ public class LevelGenerator : NetworkBehaviour
     // para el contador de jugadores, la escribe el host y todos la leen
     public NetworkVariable<int> ConnectedPlayersCount = new NetworkVariable<int>(0);
 
+
+    // contador de enemigos eliminados
+    public NetworkVariable<int> GlobalEnemiesKilled = new NetworkVariable<int>(0);
+
     /// <summary>
     /// Inicializa referencias de escena y suscribe el evento de registro de jugador local.
     /// </summary>

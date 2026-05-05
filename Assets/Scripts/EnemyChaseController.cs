@@ -12,6 +12,7 @@ public class EnemyChaseController : EnemyController
     private Vector2 wanderDirection;
     private float wanderSpeed;
     private float wanderTimer;
+    private float radarTimer = 0f;
 
     /// <summary>
     /// Inicializa la referencia al jugador y configura el estado inicial de vagabundeo.
@@ -70,15 +71,59 @@ public class EnemyChaseController : EnemyController
     /// </summary>
     protected override void Move()
     {
-        if (isKnockback || playerTransform == null)
-            return;
+        if (!IsServer) return; // solo el host lo hace
+        if (isKnockback) return;
 
+        // cada medio seg busca jugadores
+        radarTimer -= Time.fixedDeltaTime;
+        if (radarTimer <= 0f)
+        {
+            radarTimer = 0.5f;
+            FindClosestPlayer();
+        }
+
+        // si no detecto a nadie wander
+        if (playerTransform == null)
+        {
+            wanderMovement();
+            return;
+        }
+
+        
         float distanceToPlayer = Vector2.Distance(transform.position, playerTransform.position);
 
         if (distanceToPlayer > chaseRange)
+            //si la distancia es mas que la predefiida wander
             wanderMovement();
         else
+            //sino ataca
             chasePlayer();
+    }
+
+    /// <summary>
+    /// Escanea el mapa en busca del jugador más cercano
+    /// </summary>
+    private void FindClosestPlayer()
+    {
+        GameObject[] players = GameObject.FindGameObjectsWithTag("Player");
+        float minDistance = float.MaxValue;
+        Transform closestPlayer = null;
+
+        foreach (GameObject p in players)
+        {
+            // Solo nos interesan los jugadores que siguen vivos 
+            if (p != null && p.activeInHierarchy)
+            {
+                float dist = Vector2.Distance(transform.position, p.transform.position);
+                if (dist < minDistance)
+                {
+                    minDistance = dist;
+                    closestPlayer = p.transform;
+                }
+            }
+        }
+
+        playerTransform = closestPlayer;
     }
 
     /// <summary>

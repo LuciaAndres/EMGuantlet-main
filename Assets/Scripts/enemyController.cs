@@ -18,6 +18,9 @@ public abstract class EnemyController : CharController
     /// </summary>
     protected virtual void OnCollisionStay2D(Collision2D collision)
     {
+
+        //solo se calcula en el cliente
+        if (!IsServer) return;
         if (!collision.gameObject.CompareTag("Player")) return;
 
         PlayerController player = collision.gameObject.GetComponent<PlayerController>();
@@ -30,8 +33,9 @@ public abstract class EnemyController : CharController
         }
         else
         {
+            //el servidor le dice al jugador que reciba daño de forma autoritativa
             Vector2 knockbackDir = (player.transform.position - transform.position).normalized;
-            player.TakeDamage(damageToPlayer, knockbackDir);
+            player.TakeDamageServerAuthoritative(damageToPlayer, knockbackDir);
         }
     }
 
@@ -63,10 +67,18 @@ public abstract class EnemyController : CharController
     /// </summary>
     public override void Die()
     {
+        if (isDead) return; // no suma ds veces si hay golpe doble
         base.Die();
 
-        if (GameManager.Instance != null)
-            GameManager.Instance.AddEnemyKill();
+        // el servidor incrementa el contador
+        if (IsServer)
+        {
+            LevelGenerator generator = FindFirstObjectByType<LevelGenerator>();
+            if (generator != null)
+            {
+                generator.GlobalEnemiesKilled.Value++;
+            }
+        }
 
         spawnDrops();
     }
