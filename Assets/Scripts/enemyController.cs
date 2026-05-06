@@ -22,6 +22,10 @@ public abstract class EnemyController : CharController
         //solo se calcula en el cliente
         if (!IsServer) return;
         if (!collision.gameObject.CompareTag("Player")) return;
+        if (!collision.gameObject.CompareTag("Walls"))
+        {
+
+        }
 
         PlayerController player = collision.gameObject.GetComponent<PlayerController>();
         if (player == null) return;
@@ -33,7 +37,7 @@ public abstract class EnemyController : CharController
         }
         else
         {
-            //el servidor le dice al jugador que reciba daño de forma autoritativa
+            //el servidor le dice al jugador que reciba daño
             Vector2 knockbackDir = (player.transform.position - transform.position).normalized;
             player.TakeDamageServerAuthoritative(damageToPlayer, knockbackDir);
         }

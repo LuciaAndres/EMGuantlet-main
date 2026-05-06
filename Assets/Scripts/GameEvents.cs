@@ -63,6 +63,7 @@ public static class GameEvents
     /// </summary>
     public static void Victory()
     {
+        
         OnVictory?.Invoke();
     }
 

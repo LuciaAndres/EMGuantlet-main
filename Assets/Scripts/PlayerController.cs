@@ -481,12 +481,15 @@ public class PlayerController : CharController
 
     private void onAttack(UnityEngine.InputSystem.InputAction.CallbackContext context)
     {
+    
+        if (IsAttacking) return;
+        
         animator.SetTrigger("Attack");
         IsAttacking = true;
 
         // avisamos que atacamos
-        SetAttackStateServerRpc(true);
-
+        SetAttackStateServerRpc(IsAttacking);
+        
         Invoke(nameof(endAttack), attackCooldown);
     }
 
@@ -512,4 +515,6 @@ public class PlayerController : CharController
        
         NetworkManager.Singleton.SceneManager.LoadScene(SceneNames.VictoryScene, LoadSceneMode.Single);
     }
+
+    
 }
