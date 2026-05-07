@@ -97,7 +97,7 @@ public class NetworkLobbyManager : NetworkBehaviour
 
 
     // SOLO SE EJECUTA EN EL SERVIDOR (AL LLEVAR EL RCP)
-    [ServerRpc(RequireOwnership = false)]
+    [ServerRpc]
     public void SelectCharacterServerRpc(int characterIndex, ServerRpcParams serverRpcParams = default)
     {
         ulong senderClientId = serverRpcParams.Receive.SenderClientId;
