@@ -13,6 +13,9 @@ public class PlayerController : CharController
     // Variable de red para nuestro color
     private NetworkVariable<int> netCharacterIndex = new NetworkVariable<int>(-1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
+    //mov
+    private NetworkVariable<Vector2> netMovement = new NetworkVariable<Vector2>(Vector2.zero, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
     protected int damageToEnemy;
     protected float attackCooldown;
     private PlayerControls controls;
@@ -348,11 +351,20 @@ public class PlayerController : CharController
     /// </summary>
     protected override void Update()
     {
-        animator.SetFloat("speed", movement.sqrMagnitude);
-
-        if (movement.sqrMagnitude > 0.01f)
+        // si somos el dueño metemos los daots en el netwoek variable 
+        if (IsOwner)
         {
-            float angle = Mathf.Atan2(movement.y, movement.x) * Mathf.Rad2Deg;
+            netMovement.Value = movement;
+        }
+
+        // todos axtualizan el estado de todos
+        Vector2 currentNetMovement = netMovement.Value;
+
+        animator.SetFloat("speed", currentNetMovement.sqrMagnitude);
+
+        if (currentNetMovement.sqrMagnitude > 0.01f)
+        {
+            float angle = Mathf.Atan2(currentNetMovement.y, currentNetMovement.x) * Mathf.Rad2Deg;
             transform.rotation = Quaternion.Euler(0, 0, angle - 90f);
         }
 
@@ -481,15 +493,13 @@ public class PlayerController : CharController
 
     private void onAttack(UnityEngine.InputSystem.InputAction.CallbackContext context)
     {
-    
         if (IsAttacking) return;
-        
-        animator.SetTrigger("Attack");
+
         IsAttacking = true;
 
-        // avisamos que atacamos
-        SetAttackStateServerRpc(IsAttacking);
-        
+        // avisa 
+        SetAttackStateServerRpc(true);
+
         Invoke(nameof(endAttack), attackCooldown);
     }
 
@@ -501,11 +511,26 @@ public class PlayerController : CharController
         SetAttackStateServerRpc(false);
     }
 
-    // actualiza el host
     [ServerRpc]
     private void SetAttackStateServerRpc(bool state)
     {
         IsAttacking = state;
+
+        // si atacamos avisamoa a todos
+        if (state)
+        {
+            PlayAttackAnimationClientRpc();
+        }
+    }
+
+    // se reproduce
+    [ClientRpc]
+    private void PlayAttackAnimationClientRpc()
+    {
+        if (animator != null)
+        {
+            animator.SetTrigger("Attack");
+        }
     }
 
     [ServerRpc]

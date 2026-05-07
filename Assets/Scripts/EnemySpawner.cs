@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using Unity.Netcode;
+using UnityEngine;
 
 [RequireComponent(typeof(UniqueEntity))]
 public class EnemySpawner : MonoBehaviour
@@ -10,7 +11,7 @@ public class EnemySpawner : MonoBehaviour
 
     [Header("Opciones de área de spawn")]
     [SerializeField] private bool spawnInArea = false;
-    [SerializeField] private float spawnRadius = 3f;
+    [SerializeField] private float spawnRadius = 0.5f;
 
     private int spawnedCount = 0;
     private float timer = 0f;
@@ -28,6 +29,11 @@ public class EnemySpawner : MonoBehaviour
     /// </summary>
     private void Update()
     {
+        //no hay red, no somos server
+        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            return;
+
+
         if (enemyPrefab == null || spawnedCount >= totalEnemies)
             return;
 
@@ -55,10 +61,22 @@ public class EnemySpawner : MonoBehaviour
             spawnPos += new Vector3(offset.x, offset.y, 0f);
         }
 
+        //host crea clon
         GameObject enemy = Instantiate(enemyPrefab, spawnPos, Quaternion.identity);
 
         UniqueEntity uniqueEntity = enemy.GetComponent<UniqueEntity>();
         if (uniqueEntity != null)
             uniqueEntity.RegenerateIdOnSpawn();
+
+        //aparece con network objet el enemigo a todos
+        NetworkObject netObj = enemy.GetComponent<NetworkObject>();
+        if (netObj != null)
+        {
+            netObj.Spawn(true);
+        }
+        else
+        {
+            Debug.LogError($"[EnemySpawner] ¡Ojo! El prefab del enemigo {enemyPrefab.name} NO tiene el componente NetworkObject.");
+        }
     }
 }

@@ -46,6 +46,9 @@ public class EnemyLemniscateController : EnemyController
     /// </summary>
     protected override void Move()
     {
+        // solo el host calcula ruta
+        if (!IsServer) return;
+
         if (isKnockback)
         {
             lastPosition = transform.position;
@@ -61,8 +64,13 @@ public class EnemyLemniscateController : EnemyController
         rb.MovePosition(newPosition);
 
         Vector2 movementDir = newPosition - lastPosition;
-        float angle = Mathf.Atan2(movementDir.y, movementDir.x) * Mathf.Rad2Deg - 90f;
-        transform.rotation = Quaternion.Euler(0f, 0f, angle);
+
+        
+        if (movementDir.sqrMagnitude > 0.001f)
+        {
+            float angle = Mathf.Atan2(movementDir.y, movementDir.x) * Mathf.Rad2Deg - 90f;
+            transform.rotation = Quaternion.Euler(0f, 0f, angle);
+        }
 
         lastPosition = newPosition;
     }
