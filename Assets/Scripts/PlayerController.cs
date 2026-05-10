@@ -516,14 +516,38 @@ public class PlayerController : CharController
     {
         IsAttacking = state;
 
-        // si atacamos avisamoa a todos
         if (state)
         {
             PlayAttackAnimationClientRpc();
+
+            // El servidor escanea el área y pega a los enemigos
+            PerformAttackAreaCheck();
         }
     }
 
-    // se reproduce
+    // ecaner
+    private void PerformAttackAreaCheck()
+    {
+        // Radio 
+        float attackRadius = 1.5f;
+
+        // circulo para ver que toca
+        Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, attackRadius);
+
+        foreach (Collider2D hit in hits)
+        {
+            //si es enemigo
+            EnemyController enemy = hit.GetComponent<EnemyController>();
+            if (enemy != null)
+            {
+                //repuslcion y daños
+                Vector2 knockbackDir = (enemy.transform.position - transform.position).normalized;
+
+                enemy.TakeDamage(damageToEnemy, knockbackDir);
+            }
+        }
+    }
+
     [ClientRpc]
     private void PlayAttackAnimationClientRpc()
     {

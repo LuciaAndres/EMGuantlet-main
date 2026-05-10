@@ -50,9 +50,11 @@ public class HeadUpDisplayController : MonoBehaviour
 
     [Header("UI Multijugador")]
     [SerializeField] private TMPro.TextMeshProUGUI playerCountText;
+    [SerializeField] private TMPro.TextMeshProUGUI enemiesKilledText;
 
     private LevelGenerator levelGenerator;
     private int lastPlayerCount = -1; //-1 para que se actuelice la rimera vez
+    private int lastEnemiesCount = -1; //enemigos
 
     private HudBlock activeBlock;
 
@@ -220,7 +222,7 @@ public class HeadUpDisplayController : MonoBehaviour
         };
     }
 
-   
+
     private void Update()
     {
         if (playerCountText == null) return;
@@ -229,7 +231,7 @@ public class HeadUpDisplayController : MonoBehaviour
         if (levelGenerator == null)
         {
             levelGenerator = FindFirstObjectByType<LevelGenerator>();
-            if (levelGenerator == null) return; 
+            if (levelGenerator == null) return;
         }
 
         // se lee la variable
@@ -240,6 +242,18 @@ public class HeadUpDisplayController : MonoBehaviour
         {
             lastPlayerCount = currentCount;
             playerCountText.text = $"Jugadores online: {currentCount}";
+        }
+        if (enemiesKilledText != null)
+        {
+            // igual que con jugadores online
+            int currentKills = levelGenerator.GlobalEnemiesKilled.Value;
+
+            // Si el número ha cambiado se actualiza
+            if (currentKills != lastEnemiesCount)
+            {
+                lastEnemiesCount = currentKills;
+                enemiesKilledText.text = $"Muertes: {currentKills}";
+            }
         }
     }
 }
