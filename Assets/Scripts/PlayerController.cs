@@ -581,40 +581,8 @@ public class PlayerController : CharController
     }
 
 
-    [ServerRpc]
-    public void RequestOpenDoorServerRpc(NetworkObjectReference doorRef)
-    {
-        // 2. El Servidor busca esa puerta en la red
-        if (doorRef.TryGet(out NetworkObject doorObj))
-        {
-            DoorController door = doorObj.GetComponent<DoorController>();
 
-            // 3. El Servidor valida que exista y esté cerrada
-            if (door != null && !door.IsOpen)
-            {
-                // 4. EL SERVIDOR ABRE LA PUERTA (Cambia la NetworkVariable)
-                door.OpenDoorServer();
-
-                // 5. El Servidor coge el walkie-talkie y te dice: "Gasta tu llave"
-                ConsumeKeyClientRpc();
-            }
-        }
-    }
-
-    [ClientRpc]
-    private void ConsumeKeyClientRpc()
-    {
-        if (IsOwner && GameManager.Instance != null)
-        {
-            GameManager.Instance.TryOpenDoor(EntityId, "Door");
-        }
-    }
-
-
-
-
-
-    [ClientRpc]
+[ClientRpc]
     private void PlayAttackAnimationClientRpc()
     {
         if (animator != null)
@@ -623,13 +591,71 @@ public class PlayerController : CharController
         }
     }
 
+  
+
+    [ClientRpc]
+    public void CheckKeysAndRequestOpenClientRpc(NetworkObjectReference doorRef)
+    {
+        // El Servidor detectó el choque y nos pregunta a nosotros (el dueño) si tenemos llaves
+        if (IsOwner && GameManager.Instance != null)
+        {
+            if (GameManager.Instance.GetKeys() > 0)
+            {
+                // Tenemos llaves, le devolvemos la llamada al Servidor pidiendo abrirla
+                RequestOpenDoorServerRpc(doorRef);
+            }
+        }
+    }
+
+    [ServerRpc]
+    public void RequestOpenDoorServerRpc(NetworkObjectReference doorRef)
+    {
+        // El Servidor recibe la confirmación, busca la puerta y la abre para todos
+        if (doorRef.TryGet(out NetworkObject doorObj))
+        {
+            DoorController door = doorObj.GetComponent<DoorController>();
+            if (door != null && !door.IsOpen)
+            {
+                door.OpenDoorServer();
+                ConsumeKeyClientRpc(); // Te ordena gastar tu llave
+            }
+        }
+    }
+
+    [ClientRpc]
+    private void ConsumeKeyClientRpc()
+    {
+        // Por fin, la llave se resta en tu pantalla
+        if (IsOwner && GameManager.Instance != null)
+        {
+            GameManager.Instance.TryOpenDoor(EntityId, "Door");
+        }
+    }
+
+    // --- LÓGICA DEL COFRE DE VICTORIA ---
+
+    [ClientRpc]
+    public void CheckKeysAndTriggerVictoryClientRpc()
+    {
+        // El Servidor detectó que tocaste el cofre
+        if (IsOwner && GameManager.Instance != null)
+        {
+            if (GameManager.Instance.GetKeys() > 0)
+            {
+                TriggerVictoryServerRpc(); // Le pedimos la victoria al Servidor
+            }
+            else
+            {
+                Debug.Log("¡Necesitas una llave para abrir el cofre final!");
+            }
+        }
+    }
+
     [ServerRpc]
     public void TriggerVictoryServerRpc()
     {
-        Debug.Log("Victoria....");
-       
+        Debug.Log("¡VICTORIA CONSEGUIDA!");
+        // El Host nos manda a todos los jugadores directos a la escena de Victoria
         NetworkManager.Singleton.SceneManager.LoadScene(SceneNames.VictoryScene, LoadSceneMode.Single);
     }
-
-    
 }

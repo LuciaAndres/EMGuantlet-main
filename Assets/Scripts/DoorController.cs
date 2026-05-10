@@ -49,16 +49,12 @@ public class DoorController : NetworkBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
+        if (!IsServer) return;
+
         if (nOpen.Value || !other.CompareTag("Player")) return;
         if (!other.TryGetComponent(out PlayerController pc)) return;
 
-        if (pc.IsOwner && GameManager.Instance != null)
-        {
-            if (GameManager.Instance.GetKeys() > 0)
-            {
-                pc.RequestOpenDoorServerRpc(GetComponent<NetworkObject>());
-            }
-        }
+        pc.CheckKeysAndRequestOpenClientRpc(GetComponent<NetworkObject>());
     }
 
     public void OpenDoorServer()

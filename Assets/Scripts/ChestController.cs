@@ -1,8 +1,10 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 using UnityEngine.SceneManagement;
+using Unity.Netcode;
 
 [RequireComponent(typeof(UniqueEntity))] // ✅ Requiere UniqueEntity
-public class ChestController : MonoBehaviour
+public class ChestController : NetworkBehaviour
 {
 
     private bool collected = false;
@@ -34,26 +36,13 @@ public class ChestController : MonoBehaviour
     /// </summary>
     private void OnCollisionStay2D(Collision2D collision)
     {
+        if (!IsServer) return;
+
         if (collected) return;
         if (!collision.gameObject.CompareTag("Player")) return;
+        if (!collision.gameObject.TryGetComponent(out PlayerController pc)) return;
 
-        PlayerController player = collision.gameObject.GetComponent<PlayerController>();
-        if (player == null) return;
-
-        //  Log con IDs para debugging multiplayer
-        Debug.Log($"[{EntityType}:{EntityId}] opened by [Player:{player.EntityId}]");
-        /*
-        if (GameManager.Instance != null && GameManager.Instance.TryTriggerVictory(player.EntityId, EntityId))
-        {
-            collected = true;
-        }
-        */
-        if (player == null || !player.IsOwner) return;
-
-        collected = true;
-
-        // Llamamos al metodo para cambiar de escena a la de victoria a todos
-        player.TriggerVictoryServerRpc();
+        pc.CheckKeysAndTriggerVictoryClientRpc();
     }
 
 
