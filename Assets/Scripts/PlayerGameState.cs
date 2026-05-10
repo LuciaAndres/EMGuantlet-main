@@ -57,6 +57,7 @@ public class PlayerGameState
         {
             Keys++;
             GameEvents.KeysChanged();
+            
         }
     }
 

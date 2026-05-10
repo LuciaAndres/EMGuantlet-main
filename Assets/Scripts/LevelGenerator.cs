@@ -205,6 +205,15 @@ public class LevelGenerator : NetworkBehaviour
             GameObject chest = Instantiate(treasurePrefab, center, Quaternion.identity);
             UniqueEntity uniqueEntity = chest.GetComponent<UniqueEntity>();
             if (uniqueEntity != null) uniqueEntity.RegenerateIdOnSpawn();
+
+            if (IsServer)
+            {
+                NetworkObject netObj = chest.GetComponent<NetworkObject>();
+                if (netObj != null)
+                {
+                    netObj.Spawn(true);
+                }
+            }
         }
     }
 

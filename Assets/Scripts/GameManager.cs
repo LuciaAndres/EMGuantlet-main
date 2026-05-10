@@ -140,6 +140,7 @@ public class GameManager : MonoBehaviour
     public bool TryAddKey(string playerEntityId, string keyEntityId)
     {
         if (playerState == null) return false;
+        
         playerState.AddKey();
         return true;
     }

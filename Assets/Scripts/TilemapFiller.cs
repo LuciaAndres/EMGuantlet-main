@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using UnityEngine;
+using Unity.Netcode;
 using UnityEngine.Tilemaps;
 
 [Serializable]
@@ -12,7 +13,7 @@ public class WeightedTile
     public float weight = 1f;
 }
 
-public class TilemapFiller : MonoBehaviour
+public class TilemapFiller : NetworkBehaviour
 {
     /// <summary>
     /// Construye una sala cuadrada completa con tiles, muros y spawners.
@@ -183,6 +184,7 @@ public class TilemapFiller : MonoBehaviour
     /// <summary>
     /// Instancia paredes, esquinas y puertas alrededor de una sala rectangular.
     /// </summary>
+    
     private void spawnWalls(GameObject wallPrefab, GameObject cornerPrefab, GameObject openDoor, GameObject closedDoor, Vector2Int size)
     {
         if (wallPrefab == null) return;
@@ -229,12 +231,7 @@ public class TilemapFiller : MonoBehaviour
                 else
                 {
                     GameObject doorPrefab = (openDoorIndex == 0 && openDoor != null) ? openDoor : closedDoor;
-                    if (doorPrefab != null)
-                    {
-                        GameObject door = Instantiate(doorPrefab, new Vector3(x + matchTilesOffset, yMax - 1 + matchTilesOffset, -0.1f), doorRotations[0]);
-                        UniqueEntity uniqueEntity = door.GetComponent<UniqueEntity>();
-                        if (uniqueEntity != null) uniqueEntity.RegenerateIdOnSpawn();
-                    }
+                    SpawnNetworkDoor(doorPrefab, new Vector3(x + matchTilesOffset, yMax - 1 + matchTilesOffset, -0.1f), doorRotations[0]);
                 }
             }
             else
@@ -251,12 +248,7 @@ public class TilemapFiller : MonoBehaviour
                 else
                 {
                     GameObject doorPrefab = (openDoorIndex == 1 && openDoor != null) ? openDoor : closedDoor;
-                    if (doorPrefab != null)
-                    {
-                        GameObject door = Instantiate(doorPrefab, new Vector3(x + matchTilesOffset, yMin - wallOffset + matchTilesOffset, -0.1f), doorRotations[1]);
-                        UniqueEntity uniqueEntity = door.GetComponent<UniqueEntity>();
-                        if (uniqueEntity != null) uniqueEntity.RegenerateIdOnSpawn();
-                    }
+                    SpawnNetworkDoor(doorPrefab, new Vector3(x + matchTilesOffset, yMin - wallOffset + matchTilesOffset, -0.1f), doorRotations[1]);
                 }
             }
             else
@@ -276,12 +268,7 @@ public class TilemapFiller : MonoBehaviour
                 else
                 {
                     GameObject doorPrefab = (openDoorIndex == 2 && openDoor != null) ? openDoor : closedDoor;
-                    if (doorPrefab != null)
-                    {
-                        GameObject door = Instantiate(doorPrefab, new Vector3(xMin + matchTilesOffset, y + matchTilesOffset, -0.1f), doorRotations[2]);
-                        UniqueEntity uniqueEntity = door.GetComponent<UniqueEntity>();
-                        if (uniqueEntity != null) uniqueEntity.RegenerateIdOnSpawn();
-                    }
+                    SpawnNetworkDoor(doorPrefab, new Vector3(xMin + matchTilesOffset, y + matchTilesOffset, -0.1f), doorRotations[2]);
                 }
             }
             else
@@ -298,17 +285,32 @@ public class TilemapFiller : MonoBehaviour
                 else
                 {
                     GameObject doorPrefab = (openDoorIndex == 3 && openDoor != null) ? openDoor : closedDoor;
-                    if (doorPrefab != null)
-                    {
-                        GameObject door = Instantiate(doorPrefab, new Vector3(xMax - 1 + wallOffset + matchTilesOffset, y + matchTilesOffset, -0.1f), doorRotations[3]);
-                        UniqueEntity uniqueEntity = door.GetComponent<UniqueEntity>();
-                        if (uniqueEntity != null) uniqueEntity.RegenerateIdOnSpawn();
-                    }
+                    SpawnNetworkDoor(doorPrefab, new Vector3(xMax - 1 + wallOffset + matchTilesOffset, y + matchTilesOffset, -0.1f), doorRotations[3]);
                 }
             }
             else
             {
                 Instantiate(wallPrefab, new Vector3(xMax - 1 + wallOffset + matchTilesOffset, y + matchTilesOffset, -0.1f), rot90);
+            }
+        }
+    }
+
+    
+    private void SpawnNetworkDoor(GameObject prefab, Vector3 pos, Quaternion rot)
+    {
+        if (prefab == null) return;
+        GameObject door = Instantiate(prefab, pos, rot);
+
+        UniqueEntity uniqueEntity = door.GetComponent<UniqueEntity>();
+        if (uniqueEntity != null) uniqueEntity.RegenerateIdOnSpawn();
+
+        // Si somos el servidor 
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+        {
+            NetworkObject netObj = door.GetComponent<NetworkObject>();
+            if (netObj != null)
+            {
+                netObj.Spawn(true);
             }
         }
     }

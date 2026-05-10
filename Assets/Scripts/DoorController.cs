@@ -1,11 +1,14 @@
 ﻿using UnityEngine;
+using Unity.Netcode;
 
 [RequireComponent(typeof(UniqueEntity))]
-public class DoorController : MonoBehaviour
+public class DoorController : NetworkBehaviour
 {
     [SerializeField] private Sprite openDoorSprite;
 
-    private bool isOpen = false;
+
+    private NetworkVariable<bool> nOpen = new NetworkVariable<bool>(false);
+
     private Collider2D triggerCollider;
     private Collider2D blockingCollider;
     private SpriteRenderer spriteRenderer;
@@ -14,46 +17,59 @@ public class DoorController : MonoBehaviour
     public string EntityId => uniqueEntity?.EntityId ?? "UNKNOWN";
     public EntityType EntityType => uniqueEntity?.Type ?? EntityType.Interactive_Door;
 
-    /// <summary>
-    /// Inicializa componentes de la puerta y valida la configuración de entidad.
-    /// </summary>
+    public bool IsOpen => nOpen.Value;
+
     private void Awake()
     {
         uniqueEntity = GetComponent<UniqueEntity>();
-
-        if (uniqueEntity != null && uniqueEntity.Type != EntityType.Interactive_Door)
-        {
-            Debug.LogWarning($"[DoorController] {gameObject.name} tiene tipo {uniqueEntity.Type} en lugar de Interactive_Door");
-        }
-
         spriteRenderer = GetComponent<SpriteRenderer>();
         cacheColliders();
     }
 
-    /// <summary>
-    /// Gestiona la interacción de apertura cuando entra un jugador en el trigger.
-    /// </summary>
-    private void OnTriggerEnter2D(Collider2D other)
+    public override void OnNetworkSpawn()
     {
-        if (isOpen || !other.CompareTag("Player")) return;
-        if (!other.TryGetComponent(out PlayerController player)) return;
-        if (GameManager.Instance == null) return;
+        nOpen.OnValueChanged += OnDoorStateChanged;
 
-        if (GameManager.Instance.TryOpenDoor(player.EntityId, EntityId))
+        if (nOpen.Value)
         {
-            OpenDoor(player);
+            ApplyOpenVisuals();
         }
     }
 
-    /// <summary>
-    /// Abre la puerta visualmente y desactiva la colisión bloqueante.
-    /// </summary>
-    public void OpenDoor(PlayerController player)
+    public override void OnNetworkDespawn()
     {
-        isOpen = true;
+        nOpen.OnValueChanged -= OnDoorStateChanged;
+    }
 
-        Debug.Log($"[{EntityType}:{EntityId}] opened by [Player:{player.EntityId}]");
 
+    private void OnDoorStateChanged(bool previousValue, bool newValue)
+    {
+        if (newValue) ApplyOpenVisuals();
+    }
+
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (nOpen.Value || !other.CompareTag("Player")) return;
+        if (!other.TryGetComponent(out PlayerController pc)) return;
+
+        if (pc.IsOwner && GameManager.Instance != null)
+        {
+            if (GameManager.Instance.GetKeys() > 0)
+            {
+                pc.RequestOpenDoorServerRpc(GetComponent<NetworkObject>());
+            }
+        }
+    }
+
+    public void OpenDoorServer()
+    {
+        if (!IsServer) return;
+
+        nOpen.Value = true;
+    }
+
+    private void ApplyOpenVisuals()
+    {
         if (openDoorSprite != null && spriteRenderer != null)
         {
             spriteRenderer.sprite = openDoorSprite;
@@ -65,18 +81,13 @@ public class DoorController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Localiza y almacena los colliders de trigger y bloqueo de la puerta.
-    /// </summary>
     private void cacheColliders()
     {
         Collider2D[] colliders = GetComponents<Collider2D>();
         foreach (Collider2D col in colliders)
         {
-            if (col.isTrigger)
-                triggerCollider = col;
-            else
-                blockingCollider = col;
+            if (col.isTrigger) triggerCollider = col;
+            else blockingCollider = col;
         }
     }
 }

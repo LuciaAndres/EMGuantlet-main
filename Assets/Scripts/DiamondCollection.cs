@@ -1,12 +1,17 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Runtime.CompilerServices;
+using Unity.Netcode;
+using UnityEngine;
 
 [RequireComponent(typeof(UniqueEntity))]
-public class DiamondCollection : MonoBehaviour
+public class DiamondCollection : NetworkBehaviour
 {
     [SerializeField] private string playerTag = "Player";
 
     private UniqueEntity uniqueEntity;
 
+    [HideInInspector]
+    public bool cogida = false;
     public string EntityId => uniqueEntity?.EntityId ?? "UNKNOWN";
     public EntityType EntityType => uniqueEntity?.Type ?? EntityType.Pickup_Diamond;
 
@@ -28,16 +33,23 @@ public class DiamondCollection : MonoBehaviour
     /// </summary>
     private void OnCollisionStay2D(Collision2D collision)
     {
-        if (!collision.gameObject.CompareTag(playerTag)) return;
+        if (!IsHost) return;
+        if (!IsServer) return;
 
+        if (!collision.gameObject.CompareTag(playerTag)) return;
         PlayerController player = collision.gameObject.GetComponent<PlayerController>();
         if (player == null) return;
         if (GameManager.Instance == null) return;
+        if (cogida) return;
+        cogida = true;
 
-        if (GameManager.Instance.TryAddDiamond(player.EntityId, EntityId))
-        {
-            Debug.Log($"[{EntityType}:{EntityId}] collected by [Player:{player.EntityId}]");
-            Destroy(gameObject);
-        }
+        player.GivePlayerDiamondAutoritative();
+
+
+        GetComponent<NetworkObject>().Despawn(true);
+
+        cogida = false;
+
+
     }
 }

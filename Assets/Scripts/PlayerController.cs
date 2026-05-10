@@ -547,6 +547,72 @@ public class PlayerController : CharController
             }
         }
     }
+    public void GivePlayerKeyAutoritative()
+    {
+        if (IsServer)
+        {
+            GiveKeyClientRpc();
+        }
+    }
+
+    [ClientRpc]
+    private void GiveKeyClientRpc()
+    {
+        if (IsOwner && GameManager.Instance != null)
+        {
+            GameManager.Instance.TryAddKey(EntityId, "Key");
+        }
+    }
+    public void GivePlayerDiamondAutoritative()
+    {
+        if (IsServer)
+        {
+            GiveDiamondClientRpc();
+        }
+    }
+
+    [ClientRpc]
+    private void GiveDiamondClientRpc()
+    {
+        if (IsOwner && GameManager.Instance != null)
+        {
+            GameManager.Instance.TryAddDiamond(EntityId, "Diamond");
+        }
+    }
+
+
+    [ServerRpc]
+    public void RequestOpenDoorServerRpc(NetworkObjectReference doorRef)
+    {
+        // 2. El Servidor busca esa puerta en la red
+        if (doorRef.TryGet(out NetworkObject doorObj))
+        {
+            DoorController door = doorObj.GetComponent<DoorController>();
+
+            // 3. El Servidor valida que exista y esté cerrada
+            if (door != null && !door.IsOpen)
+            {
+                // 4. EL SERVIDOR ABRE LA PUERTA (Cambia la NetworkVariable)
+                door.OpenDoorServer();
+
+                // 5. El Servidor coge el walkie-talkie y te dice: "Gasta tu llave"
+                ConsumeKeyClientRpc();
+            }
+        }
+    }
+
+    [ClientRpc]
+    private void ConsumeKeyClientRpc()
+    {
+        if (IsOwner && GameManager.Instance != null)
+        {
+            GameManager.Instance.TryOpenDoor(EntityId, "Door");
+        }
+    }
+
+
+
+
 
     [ClientRpc]
     private void PlayAttackAnimationClientRpc()
