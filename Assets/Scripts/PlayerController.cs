@@ -655,7 +655,15 @@ public class PlayerController : CharController
     public void TriggerVictoryServerRpc()
     {
         Debug.Log("¡VICTORIA CONSEGUIDA!");
+
+        ShowVictoryClientRpc();
         // El Host nos manda a todos los jugadores directos a la escena de Victoria
         NetworkManager.Singleton.SceneManager.LoadScene(SceneNames.VictoryScene, LoadSceneMode.Single);
+    }
+
+    [ClientRpc]
+    public void ShowVictoryClientRpc()
+    {
+        GameEvents.Victory();
     }
 }

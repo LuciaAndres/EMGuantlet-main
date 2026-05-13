@@ -36,14 +36,19 @@ public class ChestController : NetworkBehaviour
     /// </summary>
     private void OnCollisionStay2D(Collision2D collision)
     {
-        if (!IsServer) return;
+        // if (!IsServer) return;
 
         if (collected) return;
+        Debug.Log("Hola");
         if (!collision.gameObject.CompareTag("Player")) return;
-        if (!collision.gameObject.TryGetComponent(out PlayerController pc)) return;
+        Debug.Log("Hola2");
+
+        PlayerController pc = collision.gameObject.GetComponent<PlayerController>();
+        if (pc == null) return;
+
+        collected = true;
+        
 
         pc.CheckKeysAndTriggerVictoryClientRpc();
     }
-
-
 }
