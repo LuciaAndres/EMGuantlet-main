@@ -1,4 +1,4 @@
-﻿using Unity.Netcode;  //para que funcione
+using Unity.Netcode;  //para que funcione
 //using Unity.Netcode.Components;  
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -104,7 +104,7 @@ public class PlayerController : CharController
             // debig para el bug
             if (GameManager.Instance != null && GameManager.Instance.LocalPlayerController != null)
             {
-                Debug.LogError("🚨 ¡CAZADO! Intento de clon bloqueado.");
+                Debug.LogError(" ¡CAZADO! Intento de clon bloqueado.");
                 return;
             }
 
