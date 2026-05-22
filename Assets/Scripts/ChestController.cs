@@ -7,7 +7,6 @@ using Unity.Netcode;
 public class ChestController : NetworkBehaviour
 {
 
-    private bool collected = false;
     
     // ✅ Nueva variable para UniqueEntity
     private UniqueEntity uniqueEntity;
@@ -38,12 +37,10 @@ public class ChestController : NetworkBehaviour
     {
         // if (!IsServer) return;
         if (!collision.gameObject.CompareTag("Player")) return;
-        if (collected) return;
 
         PlayerController pc = collision.gameObject.GetComponent<PlayerController>();
         if (pc == null) return;
 
-        collected = true;
         
 
         pc.CheckKeysAndTriggerVictoryClientRpc();
